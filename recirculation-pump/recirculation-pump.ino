@@ -1,5 +1,17 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <EspMQTTClient.h>
+
+#include "secrets.h"
+
+EspMQTTClient client(
+  SECRET_WIFI_AP_NAME,
+  SECRET_WIFI_PASSWORD,
+  "192.168.1.67",  // MQTT Broker server ip
+  SECRET_MQTT_USER,
+  SECRET_MQTT_PASSWORD,
+  "recirculation-pump"      // Client name that uniquely identify your device
+);
 
 /** One wire Temp sensor **/
 const int oneWireBus = 4;
@@ -12,6 +24,7 @@ const int analogInPin = A0;
 void setup() {
   Serial.begin(115200);
   sensors.begin();
+  client.enableDebuggingMessages(true);
 }
 
 void loop() {
@@ -35,6 +48,18 @@ void loop() {
   Serial.print(sensorValue);
   Serial.print("\t output = ");
   Serial.println(outputValue);
+  
 
-  delay(5000);
+  client.publish("recirculation-pump/test", "This is a message");
+
+  client.loop();
+  delay(1000);
+}
+
+void onConnectionEstablished() {
+  Serial.println("Connection established to MQTT");
+  client.subscribe("recirculation-pump/serial-messages", [] (const String &payload)  {
+    Serial.println(payload);
+  });
+
 }
