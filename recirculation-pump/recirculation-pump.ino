@@ -34,34 +34,41 @@ void setup() {
 
 }
 
+typedef struct deviceData {
+  float temp;
+  DeviceAddress address;
+} DeviceData;
+
 void loop() {
   sensors.requestTemperatures(); 
+  int deviceCount = sensors.getDeviceCount();
+
+  DeviceData data[deviceCount];
+  for (int i = 0; i < deviceCount; i++) {
+    data[i].temp = sensors.getTempFByIndex(i);
+    if (!sensors.getAddress(&data[i].address[0], i)) {
+      Serial.println("Failed to read device address");
+    }
+  }
   
-  float temperatureC = sensors.getTempCByIndex(0);
-  float temperatureF = sensors.getTempFByIndex(0);
-//  Serial.print("DS18B20 Temp\n");
-//  Serial.print(temperatureC);
-//  Serial.println("ºC");
-//  Serial.print(temperatureF);
-//  Serial.println("ºF");
-  
-  int sensorValue = analogRead(analogInPin);
-  
+  int sensorValue = analogRead(analogInPin);  
   // map it to the range of the PWM out
   int outputValue = map(sensorValue, 0, 1023, 0, 255);
-  
-  // print the readings in the Serial Monitor
-//  Serial.print("Pressure Sensor\n sensorValue =");
-//  Serial.print(sensorValue);
-//  Serial.print("\t output = ");
-//  Serial.println(outputValue);
   
   client.loop();
 
   if (client.isConnected()) {
-    char message[1000];
-    snprintf(message, 1000, "{'testing': %2.2f}", temperatureF);
-    client.publish("recirculation-pump/test", message);
+    size_t maxSize = 1000;
+    char topic[maxSize];
+    char message[maxSize];
+    for (int i = 0; i < deviceCount; i++) {
+      snprintf(topic, maxSize, "recirculation-pump/sensors/temperature-%llx", *(uint64_t*)&data[i].address);
+      snprintf(message, maxSize, "{\"temperatureF\": %2.2f}", data[i].temp);
+      client.publish(topic, message);
+    }
+    snprintf(topic, maxSize, "recirculation-pump/sensors/pressure-0");
+    snprintf(message, maxSize, "{\"raw\": %d, \"scaled\": %d}", outputValue, sensorValue);
+    client.publish(topic, message);
     delay(1000);
   } else {
     // If we're not connected, blink the LED
@@ -75,6 +82,7 @@ void loop() {
       }
       digitalWrite(LED_BUILTIN, ledState);
     }
+    delay(10);
   }
   
 }
